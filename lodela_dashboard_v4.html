@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LODELA — Tableau de bord pilotage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #0f0f0f;
+  --bg2: #161616;
+  --bg3: #1e1e1e;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #f0ede8;
+  --text2: #8a8680;
+  --text3: #555250;
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.12);
+  --amber: #fbbf24;
+  --amber-dim: rgba(251,191,36,0.12);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.12);
+  --blue: #60a5fa;
+  --blue-dim: rgba(96,165,250,0.12);
+  --teal: #2dd4bf;
+  --accent: #c8b89a;
+  --font: 'Sora', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --radius: 10px;
+  --radius-lg: 16px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.6; }
+body { min-height: 100vh; padding: 0 0 4rem; }
+
+/* HEADER */
+.header {
+  border-bottom: 1px solid var(--border);
+  padding: 1.25rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: rgba(15,15,15,0.92);
+  backdrop-filter: blur(12px);
+  z-index: 100;
+}
+.header-left { display: flex; align-items: center; gap: 1rem; }
+.logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 0.12em; }
+.logo span { color: var(--text3); }
+.header-title { font-size: 13px; color: var(--text2); }
+.header-right { display: flex; align-items: center; gap: 1rem; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: pulse 2s infinite; }
+.status-dot.connected { background: var(--green); }
+.status-label { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+.last-sync { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+/* CONFIG BANNER */
+.config-banner {
+  background: var(--amber-dim);
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: var(--radius);
+  padding: 1rem 1.5rem;
+  margin: 1.5rem 2rem 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+.config-banner.hidden { display: none; }
+.config-banner-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.config-banner-text { flex: 1; }
+.config-banner-text strong { color: var(--amber); font-size: 13px; }
+.config-banner-text p { font-size: 12px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
+.config-toggle { font-size: 12px; color: var(--amber); cursor: pointer; text-decoration: underline; white-space: nowrap; }
+
+/* CONFIG PANEL */
+.config-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin: 1rem 2rem 0;
+  display: none;
+}
+.config-panel.open { display: block; }
+.config-panel h3 { font-size: 13px; font-weight: 500; color: var(--accent); margin-bottom: 1rem; letter-spacing: 0.05em; }
+.config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.config-field label { font-size: 11px; color: var(--text3); font-family: var(--mono); display: block; margin-bottom: 6px; letter-spacing: 0.06em; }
+.config-field input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.config-field input:focus { border-color: var(--accent); }
+.config-actions { display: flex; gap: 10px; margin-top: 1rem; }
+.btn {
+  padding: 8px 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: #0f0f0f; border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover { background: #d4c5aa; }
+.btn-ghost { background: transparent; color: var(--text2); }
+.btn-ghost:hover { background: var(--bg3); }
+
+/* PERIOD SELECTOR */
+.period-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1.5rem 2rem 0;
+}
+.period-label { font-size: 11px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.06em; margin-right: 4px; }
+.period-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text2);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.period-btn.active { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+.refresh-btn {
+  margin-left: auto;
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* MAIN GRID */
+.main { padding: 1.5rem 2rem 0; }
+
+/* SECTION */
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin: 2rem 0 1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-label::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* KPI GRID */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+.kpi-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+
+.kpi-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.2rem;
+  transition: border-color 0.2s;
+}
+.kpi-card:hover { border-color: var(--border2); }
+.kpi-card.warn { border-left: 2px solid var(--amber); }
+.kpi-card.danger { border-left: 2px solid var(--red); }
+.kpi-card.ok { border-left: 2px solid var(--green); }
+.kpi-label { font-size: 10px; color: var(--text3); font-family: var(--mono); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
+.kpi-value { font-size: 24px; font-weight: 600; color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; }
+.kpi-value.green { color: var(--green); }
+.kpi-value.amber { color: var(--amber); }
+.kpi-value.red { color: var(--red); }
+.kpi-sub { font-size: 11px; color: var(--text3); margin-top: 6px; }
+.kpi-loading { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+/* CHART CARDS */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.chart-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.4rem;
+}
+.chart-card-title { font-size: 11px; color: var(--text2); font-family: var(--mono); letter-spacing: 0.05em; margin-bottom: 1rem; }
+.legend-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+/* PIPELINE */
+.pipeline-row { margin-bottom: 12px; }
+.pipeline-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--text2); margin-bottom: 5px; }
+.pipeline-bar-bg { background: var(--bg3); border-radius: 3px; height: 6px; overflow: hidden; }
+.pipeline-bar-fill { height: 6px; border-radius: 3px; transition: width 1s ease; }
+.pipeline-footer { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); margin-top: 4px; font-family: var(--mono); }
+
+/* ALERTS */
+.alerts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.alert-card {
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.alert-card.danger { background: var(--red-dim); border: 1px solid rgba(248,113,113,0.2); }
+.alert-card.warn { background: var(--amber-dim); border: 1px solid rgba(251,191,36,0.2); }
+.alert-card.ok { background: var(--green-dim); border: 1px solid rgba(74,222,128,0.2); }
+.alert-card.info { background: var(--blue-dim); border: 1px solid rgba(96,165,250,0.2); }
+.alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.alert-dot.danger { background: var(--red); }
+.alert-dot.warn { background: var(--amber); }
+.alert-dot.ok { background: var(--green); }
+.alert-dot.info { background: var(--blue); }
+.alert-content strong { font-size: 12px; font-weight: 500; }
+.alert-content.danger strong { color: var(--red); }
+.alert-content.warn strong { color: var(--amber); }
+.alert-content.ok strong { color: var(--green); }
+.alert-content.info strong { color: var(--blue); }
+.alert-content p { font-size: 11px; color: var(--text2); margin-top: 3px; line-height: 1.5; }
+
+/* FOOTER */
+.dash-footer {
+  margin: 2.5rem 2rem 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.dash-footer-label { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-right: 4px; }
+.action-btn {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  background: transparent;
+  color: var(--text2);
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.action-btn:hover { background: var(--bg3); color: var(--text); border-color: var(--accent); }
+
+/* LOADING OVERLAY */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,15,15,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  flex-direction: column;
+  gap: 16px;
+}
+.loading-overlay.hidden { display: none; }
+.spinner {
+  width: 32px; height: 32px;
+  border: 2px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-label { font-family: var(--mono); font-size: 12px; color: var(--text3); }
+
+/* Error state */
+.error-inline { font-size: 11px; color: var(--red); font-family: var(--mono); padding: 4px 0; }
+
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .two-col { grid-template-columns: 1fr; }
+  .alerts-grid { grid-template-columns: 1fr; }
+  .config-grid { grid-template-columns: 1fr; }
+  .header { flex-wrap: wrap; gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div class="loading-overlay hidden" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-label" id="loadingLabel">Connexion à Odoo...</div>
+</div>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <span class="logo">LODELA <span>/</span> PILOTAGE</span>
+    <span class="header-title">Tableau de bord dirigeant</span>
+  </div>
+  <div class="header-right">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-label" id="statusLabel">Non connecté</span>
+    </div>
+    <span class="last-sync" id="lastSync">—</span>
+  </div>
+</header>
+
+<!-- CONFIG BANNER -->
+<div class="config-banner" id="configBanner">
+  <div class="config-banner-icon">⚙</div>
+  <div class="config-banner-text">
+    <strong>Configuration requise</strong>
+    <p>Renseigne ton URL Odoo et ta clé API pour connecter les données live. Les données affichées sont des exemples.</p>
+  </div>
+  <span class="config-toggle" onclick="toggleConfig()">Configurer →</span>
+</div>
+
+<!-- CONFIG PANEL -->
+<div class="config-panel" id="configPanel">
+  <h3>— CONNEXION ODOO</h3>
+  <div class="config-grid">
+    <div class="config-field">
+      <label>URL ODOO (ex: https://lodela.odoo.com)</label>
+      <input type="text" id="cfgUrl" placeholder="https://ton-instance.odoo.com">
+    </div>
+    <div class="config-field">
+      <label>BASE DE DONNÉES</label>
+      <input type="text" id="cfgDb" placeholder="lodela (souvent le sous-domaine)">
+    </div>
+    <div class="config-field">
+      <label>EMAIL UTILISATEUR</label>
+      <input type="email" id="cfgUser" placeholder="ton@email.com">
+    </div>
+    <div class="config-field">
+      <label>CLÉ API</label>
+      <input type="password" id="cfgKey" placeholder="Clé générée dans Mon Profil → Sécurité">
+    </div>
+  </div>
+  <div class="config-actions">
+    <button class="btn btn-primary" onclick="saveAndConnect()">Connecter et charger</button>
+    <button class="btn btn-ghost" onclick="loadDemoData()">Voir avec données démo</button>
+    <button class="btn btn-ghost" onclick="toggleConfig()">Fermer</button>
+  </div>
+  <p style="font-size:11px;color:var(--text3);margin-top:12px;line-height:1.6;">
+    🔒 Tes identifiants sont stockés uniquement dans ton navigateur (localStorage). Ils ne transitent jamais par un serveur tiers.<br>
+    Les appels vont directement de ton navigateur vers ton instance Odoo via l'API JSON-RPC officielle.
+  </p>
+</div>
+
+<!-- PERIOD BAR -->
+<div class="period-bar">
+  <span class="period-label">Exercice</span>
+  <button class="period-btn active" id="ex2526" onclick="setExercice('2526',this)">25-26</button>
+  <button class="period-btn" id="ex2627" onclick="setExercice('2627',this)">26-27</button>
+  <span class="period-label" style="margin-left:0.75rem;">Période</span>
+  <button class="period-btn active" onclick="setPeriod('month',this)">Ce mois</button>
+  <button class="period-btn" onclick="setPeriod('quarter',this)">Ce trimestre</button>
+  <button class="period-btn" onclick="setPeriod('ytd',this)">YTD exercice</button>
+  <button class="period-btn" onclick="setPeriod('full',this)">Exercice complet</button>
+  <button class="refresh-btn" onclick="loadData()">↻ Actualiser</button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- VENTES & CA -->
+  <div class="section-label">01 — Ventes & chiffre d'affaires</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">CA période</div><div class="kpi-value" id="kpi-ca">—</div><div class="kpi-sub" id="kpi-ca-sub">Chargement...</div></div>
+    <div class="kpi-card"><div class="kpi-label">CA cumulé YTD</div><div class="kpi-value" id="kpi-ca-ytd">—</div><div class="kpi-sub" id="kpi-ca-ytd-pct">vs objectif annuel</div></div>
+    <div class="kpi-card"><div class="kpi-label">Devis émis</div><div class="kpi-value" id="kpi-devis">—</div><div class="kpi-sub" id="kpi-devis-sub">période</div></div>
+    <div class="kpi-card"><div class="kpi-label">Taux conversion</div><div class="kpi-value" id="kpi-conv">—</div><div class="kpi-sub">devis → commande</div></div>
+  </div>
+
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-card-title">CA mensuel 2026 — réel vs objectif</div>
+      <div class="legend-row">
+        <div class="legend-item"><span class="legend-dot" style="background:#2dd4bf"></span>CA réel</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fbbf24;opacity:0.5"></span>Objectif mensuel</div>
+      </div>
+      <div style="position:relative;height:170px;"><canvas id="caChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Pipeline commercial actuel</div>
+      <div id="pipelineContent">
+        <div class="pipeline-row">
+          <div class="pipeline-header"><span>Devis envoyés</span><span id="pipe-devis">—</span></div>
+          <div class="pipeline-bar-bg"><div class="pipeline-bar-fill" style="width:100%;background:#1e3a5f;" id="bar-devis"></div></div>
+        </div>
+        <div class="pipeline-row">
+          <div class="pipeline-header"><span>Bons de commande</span><span id="pipe-cmd">—</span></div>
+          <div class="pipeline-bar-bg"><div class="pipeline-bar-fill" style="width:0%;background:#378ADD;" id="bar-cmd"></div></div>
+        </div>
+        <div class="pipeline-row">
+          <div class="pipeline-header"><span>En cours de livraison</span><span id="pipe-liv">—</span></div>
+          <div class="pipeline-bar-bg"><div class="pipeline-bar-fill" style="width:0%;background:#60a5fa;" id="bar-liv"></div></div>
+        </div>
+        <div class="pipeline-row">
+          <div class="pipeline-header"><span>Facturés (mois)</span><span id="pipe-fact">—</span></div>
+          <div class="pipeline-bar-bg"><div class="pipeline-bar-fill" style="width:0%;background:#2dd4bf;" id="bar-fact"></div></div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:12px;font-family:var(--mono);">Taux conv. devis→cmd : <span id="conv-rate" style="color:var(--teal)">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRÉSORERIE & FINANCES -->
+  <div class="section-label">02 — Trésorerie & finances</div>
+  <div class="kpi-grid">
+    <div class="kpi-card ok"><div class="kpi-label">Trésorerie</div><div class="kpi-value green" id="kpi-tres">—</div><div class="kpi-sub">Solde compte courant</div></div>
+    <div class="kpi-card"><div class="kpi-label">Factures à encaisser</div><div class="kpi-value amber" id="kpi-ar">—</div><div class="kpi-sub" id="kpi-ar-sub">Créances ouvertes</div></div>
+    <div class="kpi-card warn"><div class="kpi-label">Factures fournisseurs dues</div><div class="kpi-value" id="kpi-ap">—</div><div class="kpi-sub" id="kpi-ap-sub">À payer</div></div>
+    <div class="kpi-card"><div class="kpi-label">DSO moyen</div><div class="kpi-value" id="kpi-dso">—</div><div class="kpi-sub">Délai encaissement moyen</div></div>
+  </div>
+
+  <div class="chart-card" style="margin-top:10px;">
+    <div class="chart-card-title">Flux trésorerie mensuels 2026 — encaissements vs décaissements</div>
+    <div class="legend-row">
+      <div class="legend-item"><span class="legend-dot" style="background:#4ade80"></span>Encaissements</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#f87171"></span>Décaissements</div>
+    </div>
+    <div style="position:relative;height:180px;"><canvas id="tresoChart"></canvas></div>
+  </div>
+
+  <!-- OPÉRATIONS -->
+  <div class="section-label">03 — Production & opérations</div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">Commandes en cours</div><div class="kpi-value" id="kpi-cmd">—</div><div class="kpi-sub">En prod. ou attente pose</div></div>
+    <div class="kpi-card"><div class="kpi-label">Livraisons à planifier</div><div class="kpi-value amber" id="kpi-livr">—</div><div class="kpi-sub">BL à émettre</div></div>
+    <div class="kpi-card"><div class="kpi-label">Factures en retard</div><div class="kpi-value red" id="kpi-overdue">—</div><div class="kpi-sub">Relance urgente</div></div>
+    <div class="kpi-card"><div class="kpi-label">Nouveaux contacts (mois)</div><div class="kpi-value" id="kpi-contacts">—</div><div class="kpi-sub">Prospects entrants</div></div>
+  </div>
+
+  <!-- ALERTES -->
+  <div class="section-label">04 — Alertes & actions prioritaires</div>
+  <div class="alerts-grid" id="alertsGrid">
+    <div class="alert-card danger">
+      <div class="alert-dot danger"></div>
+      <div class="alert-content danger">
+        <strong>75k€ Hervé (CHACA) — CCA non formalisé</strong>
+        <p>Risque juridique pour tous les associés. Dossier notaire/compta à engager ce mois.</p>
+      </div>
+    </div>
+    <div class="alert-card warn">
+      <div class="alert-dot warn"></div>
+      <div class="alert-content warn">
+        <strong>MOMENTUM — Décisionnaire non identifié</strong>
+        <p>40% du capital sans interlocuteur unique. Clarifier avant prochaine AG.</p>
+      </div>
+    </div>
+    <div class="alert-card warn" id="alert-overdue" style="display:none;">
+      <div class="alert-dot warn"></div>
+      <div class="alert-content warn">
+        <strong>Factures en retard détectées</strong>
+        <p id="alert-overdue-text">Lancer les relances depuis Odoo.</p>
+      </div>
+    </div>
+    <div class="alert-card info">
+      <div class="alert-dot info"></div>
+      <div class="alert-content info">
+        <strong>Mission MACIF — Préparer la suite</strong>
+        <p>Fin estimée fin 2026. Plan de diversification CA BEEUP à structurer avant Q3.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="dash-footer">
+  <span class="dash-footer-label">Actions rapides</span>
+  <button class="action-btn" onclick="window.open('https://www.odoo.com/odoo/accounting', '_blank')">Ouvrir Comptabilité Odoo ↗</button>
+  <button class="action-btn" onclick="window.open('https://www.odoo.com/odoo/sales', '_blank')">Ouvrir Ventes Odoo ↗</button>
+  <button class="action-btn" onclick="exportData()">Exporter données JSON</button>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────
+const OBJECTIF_ANNUEL = 500000;
+const OBJECTIF_MENSUEL = Math.round(OBJECTIF_ANNUEL / 12);
+const MAKE_WEBHOOK_URL = "https://hook.eu1.make.com/u8616gt486fn0pxhakoofuwju27tdm1w";
+let currentPeriod = 'month';
+let currentExercice = '2526';
+let odooConfig = null;
+let cachedData = {};
+
+// Exercices fiscaux LODELA : avril -> mars
+const EXERCICES = {
+  '2526': { start: '2025-04-01', end: '2026-03-31', label: 'Exercice 25-26' },
+  '2627': { start: '2026-04-01', end: '2027-03-31', label: 'Exercice 26-27' }
+};
+
+function setExercice(ex, btn) {
+  currentExercice = ex;
+  document.querySelectorAll('[id^=ex]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadData();
+}
+
+// Load saved config
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem('lodela_odoo_config');
+    if (saved) {
+      odooConfig = JSON.parse(saved);
+      document.getElementById('cfgUrl').value = odooConfig.url || '';
+      document.getElementById('cfgDb').value = odooConfig.db || '';
+      document.getElementById('cfgUser').value = odooConfig.user || '';
+      document.getElementById('cfgKey').value = odooConfig.key ? '••••••••' : '';
+      if (odooConfig.url) {
+        document.getElementById('configBanner').classList.add('hidden');
+      }
+    }
+  } catch(e) {}
+}
+
+function saveAndConnect() {
+  const url = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
+  const db = document.getElementById('cfgDb').value.trim();
+  const user = document.getElementById('cfgUser').value.trim();
+  const keyInput = document.getElementById('cfgKey').value.trim();
+  const key = keyInput === '••••••••' ? (odooConfig?.key || '') : keyInput;
+  if (!url || !db || !user || !key) {
+    alert('Tous les champs sont requis.');
+    return;
+  }
+  odooConfig = { url, db, user, key };
+  localStorage.setItem('lodela_odoo_config', JSON.stringify(odooConfig));
+  document.getElementById('configBanner').classList.add('hidden');
+  toggleConfig();
+  loadData();
+}
+
+function toggleConfig() {
+  const panel = document.getElementById('configPanel');
+  panel.classList.toggle('open');
+}
+
+// ─── ODOO JSON-RPC ────────────────────────────────────────────────────────
+async function odooCall(model, method, args, kwargs = {}) {
+  if (!odooConfig) throw new Error('Non configuré');
+  const payload = {
+    jsonrpc: '2.0', method: 'call', id: Date.now(),
+    params: {
+      service: 'object', method: 'execute_kw',
+      args: [odooConfig.db, 1, odooConfig.key, model, method, args, kwargs]
+    }
+  };
+  // First authenticate to get uid
+  const authPayload = {
+    jsonrpc: '2.0', method: 'call', id: Date.now() + 1,
+    params: {
+      service: 'common', method: 'authenticate',
+      args: [odooConfig.db, odooConfig.user, odooConfig.key, {}]
+    }
+  };
+  const authRes = await fetch(`${odooConfig.url}/jsonrpc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(authPayload)
+  });
+  const authData = await authRes.json();
+  const uid = authData.result;
+  if (!uid) throw new Error('Authentification échouée — vérifier URL, DB et clé API');
+
+  const callPayload = {
+    jsonrpc: '2.0', method: 'call', id: Date.now() + 2,
+    params: {
+      service: 'object', method: 'execute_kw',
+      args: [odooConfig.db, uid, odooConfig.key, model, method, args, kwargs]
+    }
+  };
+  const res = await fetch(`${odooConfig.url}/jsonrpc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(callPayload)
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.data?.message || data.error.message);
+  return data.result;
+}
+
+// ─── DATE HELPERS ─────────────────────────────────────────────────────────
+function getPeriodDates(period) {
+  const now = new Date();
+  const ex = EXERCICES[currentExercice];
+  const exStart = new Date(ex.start);
+  const exEnd = new Date(ex.end);
+  const y = now.getFullYear();
+  const m = now.getMonth();
+
+  if (period === 'full') {
+    return { start: ex.start, end: ex.end };
+  } else if (period === 'ytd') {
+    const today = fmtDate(now);
+    const end = today < ex.end ? today : ex.end;
+    return { start: ex.start, end };
+  } else if (period === 'month') {
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    return { start: fmtDate(start), end: fmtDate(end) };
+  } else if (period === 'quarter') {
+    // Trimestre fiscal : T1=avr-juin, T2=juil-sep, T3=oct-dec, T4=jan-mar
+    const exMonth = (m - 3 + 12) % 12; // mois dans l'exercice (avr=0)
+    const qt = Math.floor(exMonth / 3);
+    const qtStartMonth = (qt * 3 + 3) % 12; // mois calendrier
+    const qtStartYear = qtStartMonth < 3 ? y : (qtStartMonth < 4 ? y : y);
+    const start = new Date(y, qtStartMonth, 1);
+    const end = new Date(y, qtStartMonth + 3, 0);
+    return { start: fmtDate(start), end: fmtDate(end) };
+  } else {
+    return { start: ex.start, end: ex.end };
+  }
+}
+
+function fmtDate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function fmtEur(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+function fmtNum(n) {
+  if (n === null || n === undefined) return '—';
+  return Math.round(n).toLocaleString('fr-FR');
+}
+
+// ─── DATA LOADING ─────────────────────────────────────────────────────────
+async function loadData() {
+  showLoading(true, 'Connexion à Make...');
+  try {
+    showLoading(true, 'Récupération des données Odoo via Make...');
+    const { start, end } = getPeriodDates(currentPeriod);
+    const response = await fetch(MAKE_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dateStart: start, dateEnd: end, exercice: currentExercice })
+    });
+    if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
+
+    const rawText = await response.text();
+    showLoading(false);
+    console.log('RAW MAKE RESPONSE:', rawText.substring(0, 500));
+
+    let raw;
+    try { raw = JSON.parse(rawText); } catch(e) {
+      console.error('JSON parse error:', e);
+      loadDemoData(); setConnected(false); return;
+    }
+
+    // Make renvoie parfois un tableau de bundles — on normalise
+    let factures = [];
+    let commandes = [];
+
+    // Normalisation universelle — gère tous les formats possibles de Make
+    function extractArray(val) {
+      if (!val) return [];
+      if (Array.isArray(val)) {
+        // Tableau plat de factures/commandes
+        if (val.length > 0 && val[0].amount_untaxed !== undefined) return val;
+        if (val.length > 0 && val[0].amount_total !== undefined) return val;
+        if (val.length > 0 && val[0].state !== undefined) return val;
+        return val;
+      }
+      // Objet JSON-RPC Odoo {jsonrpc, id, result:[...]}
+      if (val.result && Array.isArray(val.result)) return val.result;
+      // Objet data wrapper {data:{result:[...]}}
+      if (val.data && val.data.result && Array.isArray(val.data.result)) return val.data.result;
+      return [];
+    }
+
+    if (Array.isArray(raw)) {
+      if (raw.length > 0 && (raw[0].amount_untaxed !== undefined || raw[0].state !== undefined)) {
+        factures = raw;
+      } else if (raw.length > 0 && raw[0].factures !== undefined) {
+        raw.forEach(bundle => {
+          factures = factures.concat(extractArray(bundle.factures));
+          commandes = commandes.concat(extractArray(bundle.commandes));
+        });
+      }
+    } else if (raw && typeof raw === 'object') {
+      factures = extractArray(raw.factures);
+      commandes = extractArray(raw.commandes);
+    }
+
+    console.log('Factures parsées:', factures.length, '| Commandes parsées:', commandes.length);
+    if (factures.length > 0) console.log('Ex facture:', JSON.stringify(factures[0]));
+    if (commandes.length > 0) console.log('Ex commande:', JSON.stringify(commandes[0]));
+
+    if (factures.length === 0 && commandes.length === 0) {
+      loadDemoData();
+      setConnected(true, true);
+      return;
+    }
+
+    // Calculs factures
+    const caPeriod = factures.reduce((s, f) => s + (f.amount_untaxed || 0), 0);
+    const arTotal = factures
+      .filter(f => f.payment_state === 'not_paid' || f.payment_state === 'partial')
+      .reduce((s, f) => s + (f.amount_residual || 0), 0);
+    const overdueCount = factures.filter(f => f.payment_state === 'not_paid').length;
+    const overdueTotal = factures
+      .filter(f => f.payment_state === 'not_paid')
+      .reduce((s, f) => s + (f.amount_residual || 0), 0);
+
+    // Calculs commandes
+    const orders = commandes.filter(c => c.state === 'sale' || c.state === 'done').length;
+    const devis = commandes.filter(c => c.state === 'draft' || c.state === 'sent').length;
+    const caCommandes = commandes
+      .filter(c => c.state === 'sale' || c.state === 'done')
+      .reduce((s, c) => s + (c.amount_untaxed || 0), 0);
+    const convRate = (devis + orders) > 0 ? Math.round(orders / (devis + orders) * 100) : 0;
+
+    const pctYtd = Math.round((caPeriod / OBJECTIF_ANNUEL) * 100);
+    const dso = caPeriod > 0 ? Math.round((arTotal / caPeriod) * 30) : 0;
+
+    cachedData = {
+      caPeriod,
+      caYtd: caPeriod,
+      pctYtd,
+      devis,
+      orders,
+      convRate,
+      arTotal,
+      apTotal: 0,
+      dso,
+      overdueCount,
+      overdueTotal,
+      pickings: 0,
+      contacts: 0,
+      monthlyData: [caPeriod]
+    };
+
+    renderKpis(cachedData);
+    renderCharts(cachedData);
+    renderAlerts(cachedData);
+    setConnected(true);
+
+  } catch(e) {
+    showLoading(false);
+    setConnected(false, e.message);
+    console.error(e);
+    loadDemoData();
+  }
+}
+
+// ─── DEMO DATA ────────────────────────────────────────────────────────────
+function loadDemoData() {
+  const demo = {
+    caPeriod: 38400, caYtd: 96000, pctYtd: 19,
+    devis: 18, orders: 9,
+    convRate: 50, arTotal: 14200, apTotal: 6800, dso: 38,
+    overdueCount: 2, overdueTotal: 8600,
+    pickings: 4, contacts: 7,
+    monthlyData: [28000, 29600, 38400]
+  };
+  cachedData = demo;
+  renderKpis(demo);
+  renderCharts(demo);
+  renderAlerts(demo);
+  document.getElementById('lastSync').textContent = 'Données démo';
+}
+
+// ─── RENDER ────────────────────────────────────────────────────────────────
+function renderKpis(d) {
+  // Ventes
+  el('kpi-ca').textContent = fmtEur(d.caPeriod);
+  el('kpi-ca-sub').textContent = periodLabel();
+  el('kpi-ca-ytd').textContent = fmtEur(d.caYtd);
+  el('kpi-ca-ytd-pct').textContent = `${d.pctYtd}% de l'objectif annuel`;
+
+  el('kpi-devis').textContent = fmtNum(d.devis);
+  el('kpi-devis-sub').textContent = `${d.orders} commandes confirmées`;
+  el('kpi-conv').textContent = d.convRate + '%';
+  el('kpi-conv').className = 'kpi-value ' + (d.convRate >= 50 ? 'green' : d.convRate >= 30 ? 'amber' : 'red');
+
+  // Pipeline bars
+  const maxPipe = d.devis + d.orders || 1;
+  el('pipe-devis').textContent = d.devis;
+  el('pipe-cmd').textContent = d.orders;
+  el('pipe-liv').textContent = d.pickings;
+  el('pipe-fact').textContent = '—';
+  el('bar-cmd').style.width = Math.round((d.orders / maxPipe) * 100) + '%';
+  el('bar-liv').style.width = Math.round((d.pickings / maxPipe) * 100) + '%';
+  el('bar-fact').style.width = '0%';
+  el('conv-rate').textContent = d.convRate + '%';
+
+  // Trésorerie
+  el('kpi-tres').textContent = '—'; // trésorerie nécessite module bancaire
+  el('kpi-ar').textContent = fmtEur(d.arTotal);
+  el('kpi-ar-sub').textContent = `${(d.arTotal / (d.caPeriod || 1) * 100).toFixed(0)}% du CA période`;
+  el('kpi-ap').textContent = fmtEur(d.apTotal);
+  el('kpi-ap-sub').textContent = 'Fournisseurs à payer';
+  el('kpi-dso').textContent = d.dso > 0 ? d.dso + 'j' : '—';
+  el('kpi-dso').className = 'kpi-value ' + (d.dso > 45 ? 'red' : d.dso > 30 ? 'amber' : 'green');
+
+  // Opérations
+  el('kpi-cmd').textContent = fmtNum(d.orders);
+  el('kpi-livr').textContent = fmtNum(d.pickings);
+  el('kpi-overdue').textContent = fmtNum(d.overdueCount);
+  el('kpi-overdue').className = 'kpi-value ' + (d.overdueCount > 0 ? 'red' : 'green');
+  el('kpi-contacts').textContent = fmtNum(d.contacts);
+}
+
+let caChartInst = null, tresoChartInst = null;
+
+function renderCharts(d) {
+  const months = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
+  const labels = months.slice(0, (d.monthlyData || [0,0,0]).length);
+  const caData = d.monthlyData || [28000, 29600, 38400];
+  const objData = caData.map(() => OBJECTIF_MENSUEL);
+
+  if (caChartInst) caChartInst.destroy();
+  caChartInst = new Chart(document.getElementById('caChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'CA réel', data: caData, backgroundColor: '#2dd4bf', borderRadius: 4, borderSkipped: false },
+        { label: 'Objectif', data: objData, type: 'line', borderColor: '#fbbf24', borderWidth: 1.5, borderDash: [4,3], pointRadius: 0, fill: false, tension: 0 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#555250' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { font: { size: 11 }, color: '#555250', callback: v => (v/1000) + 'k€' } }
+      }
+    }
+  });
+
+  if (tresoChartInst) tresoChartInst.destroy();
+  // Simulate monthly encaissements/decaissements from CA data
+  const enc = caData;
+  const dec = caData.map(v => -(v * 0.62));
+  tresoChartInst = new Chart(document.getElementById('tresoChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Encaissements', data: enc, borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.07)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#4ade80' },
+        { label: 'Décaissements', data: dec, borderColor: '#f87171', backgroundColor: 'rgba(248,113,113,0.06)', fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#f87171' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#555250' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { font: { size: 11 }, color: '#555250', callback: v => (v >= 0 ? '' : '-') + Math.abs(Math.round(v/1000)) + 'k€' } }
+      }
+    }
+  });
+}
+
+function renderAlerts(d) {
+  if (d.overdueCount > 0) {
+    const alertOverdue = document.getElementById('alert-overdue');
+    alertOverdue.style.display = 'flex';
+    document.getElementById('alert-overdue-text').textContent =
+      `${d.overdueCount} facture(s) en retard — ${fmtEur(d.overdueTotal)} à relancer en priorité.`;
+  }
+}
+
+// ─── UI HELPERS ───────────────────────────────────────────────────────────
+function el(id) { return document.getElementById(id); }
+
+function showLoading(show, msg = '') {
+  const overlay = el('loadingOverlay');
+  overlay.classList.toggle('hidden', !show);
+  if (msg) el('loadingLabel').textContent = msg;
+}
+
+function setConnected(ok, partial = false) {
+  const dot = el('statusDot');
+  const label = el('statusLabel');
+  dot.className = 'status-dot' + (ok ? ' connected' : '');
+  if (ok && !partial) {
+    label.textContent = 'Connecté — données live Odoo';
+    el('lastSync').textContent = 'Sync. ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  } else if (ok && partial) {
+    label.textContent = 'Make connecté — Odoo à configurer';
+  } else {
+    label.textContent = 'Erreur connexion Make';
+  }
+}
+
+function setPeriod(p, btn) {
+  currentPeriod = p;
+  // Ne retirer active que sur les boutons de période, pas ceux d'exercice
+  document.querySelectorAll('.period-btn:not([id^=ex])').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadData();
+}
+
+function periodLabel() {
+  const now = new Date();
+  const ex = EXERCICES[currentExercice];
+  if (currentPeriod === 'month') return now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  if (currentPeriod === 'quarter') {
+    const m = now.getMonth();
+    const exMonth = (m - 3 + 12) % 12;
+    const qt = Math.floor(exMonth / 3) + 1;
+    return `T${qt} ${ex.label}`;
+  }
+  if (currentPeriod === 'ytd') return `YTD ${ex.label}`;
+  if (currentPeriod === 'full') return ex.label;
+  return ex.label;
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(cachedData, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `lodela_dashboard_${fmtDate(new Date())}.json`;
+  a.click();
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────
+document.getElementById('configBanner').classList.add('hidden');
+loadDemoData();
+setTimeout(loadData, 800);
+</script>
+</body>
+</html>
